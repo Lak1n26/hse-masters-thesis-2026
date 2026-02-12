@@ -69,7 +69,7 @@ class TIFUKNN:
         # Get all unique items to determine matrix size
         all_items = set()
         for idx, row in df.iterrows():
-            for item, _ in row[col]:
+            for item, _, _ in row[col]:
                 all_items.add(item)
         
         items = sorted(list(all_items))
@@ -92,7 +92,7 @@ class TIFUKNN:
             # We'll create "baskets" by grouping consecutive interactions
             # For simplicity, treat each interaction as a separate basket
             # (can modify this to group by sessions/days if needed)
-            baskets = [[item] for item, _ in interactions]
+            baskets = [[item] for item, _, _ in interactions]
             n_baskets = len(baskets)
             
             if n_baskets == 0:
@@ -196,7 +196,7 @@ class TIFUKNN:
         # Create mask for interacted items
         print("Masking interacted items...")
         for user_idx, (df_idx, row) in enumerate(tqdm(df.iterrows(), total=n_users, desc="Creating masks")):
-            for item, _ in row['train_interactions']:
+            for item, _, _ in row['train_interactions']:
                 if item in self.item_to_idx:
                     item_idx = self.item_to_idx[item]
                     all_scores[user_idx, item_idx] = -np.inf

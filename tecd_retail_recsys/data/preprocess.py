@@ -49,6 +49,31 @@ class DataPreprocessor:
         print(f"Loaded {len(data):,} total events")
         return data
 
+    def load_items_data(self):
+        """Load item features from items.pq file."""
+        items_path = os.path.join(self.raw_data_path, self.domain, 'items.pq')
+        print(f"Loading items data from {items_path}")
+        items_df = pd.read_parquet(items_path)
+        
+        items_df = items_df.rename(columns={
+            'brand_id': 'item_brand_id',
+            'category': 'item_category',
+            'subcategory': 'item_subcategory',
+            'price': 'item_price',
+            'embedding': 'item_embedding'
+        })
+
+        items_df['item_price'] = items_df['item_price'].fillna(0).round(3)    
+    
+        print(f"Loaded {len(items_df):,} items with features: {list(items_df.columns)}")
+        return items_df
+
+    def merge_items_features(self, data, items_df):
+        """Merge item features into the events data."""
+        data = data.merge(items_df, on='item_id', how='left')
+        print(f"Merged item features. Data shape: {data.shape}")
+        return data
+
     def filter_events(self, data):
         filtered = data[data['action_type'] == self.action_type]
         print(f"Filtered to {len(filtered):,} events with action_type='{self.action_type}'")
@@ -138,8 +163,9 @@ class DataPreprocessor:
 
     def group_by_users(self, data, col_name='interactions'):
         data_grouped = data.groupby('user_id').apply(
-            lambda x: [(t1, t2) for t1, t2 in sorted(zip(x.item_id,
-                                                        x.timestamp), key=lambda x: x[1])]
+            lambda x: [(t1, t2, t3) for t1, t2, t3 in sorted(zip(x.item_id,
+                                                        x.timestamp,
+                                                        x.item_price), key=lambda x: x[1])]
         ).reset_index()
         data_grouped.rename({0:col_name}, axis=1, inplace=True)
         return data_grouped
@@ -159,7 +185,7 @@ class DataPreprocessor:
         n_users = len(data)
         all_items = set()
         for _, row in data.iterrows():
-            for item, _ in row[col]:
+            for item, _, _ in row[col]:
                 all_items.add(item)
 
         items = sorted(list(all_items))
@@ -173,7 +199,7 @@ class DataPreprocessor:
         user_indices = {}
         for user_idx, (df_idx, row) in enumerate(data.iterrows()):
             user_indices[df_idx] = user_idx
-            for item, _ in row[col]:
+            for item, _, _ in row[col]:
                 if item in item_to_idx:
                     row_indices.append(user_idx)
                     col_indices.append(item_to_idx[item])
@@ -189,6 +215,8 @@ class DataPreprocessor:
     def preprocess(self):
         print("Starting data preprocessing...")
         data = self.load_raw_data()
+        items_df = self.load_items_data()
+        data = self.merge_items_features(data, items_df)
         data = self.filter_events(data)
         data = self.filter_by_interactions(data)
         data = self.preprocess_timestamps(data)

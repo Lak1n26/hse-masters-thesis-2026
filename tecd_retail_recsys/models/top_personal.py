@@ -9,7 +9,7 @@ class TopPersonal:
         self.user_recommendations = {}
         for idx, row in df.iterrows():
             user_items = {}
-            for item, _ in row[col]:
+            for item, _, _ in row[col]:
                 if item in user_items:
                     user_items[item] += 1
                 else:

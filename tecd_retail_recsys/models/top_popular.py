@@ -8,7 +8,7 @@ class TopPopular:
     def fit(self, df, col='train_interactions'):
         counts = {}
         for _, row in df.iterrows():
-            for item, _ in row[col]:
+            for item, _, _ in row[col]:
                 if item in counts:
                     counts[item] += 1
                 else:

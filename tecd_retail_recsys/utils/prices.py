@@ -36,14 +36,29 @@ def calculate_overall_avg_price(grouped_data, interaction_col='train_interaction
     return total_price / total_count if total_count > 0 else np.nan
 
 
-def get_avg_recs_price(joined, item_to_price,col='toppopular_recs'):
-    for interactions in joined[col]:
-        total_price = 0
-        total_cnt = 0
-        for item_id in interactions:
-            total_price += item_to_price[item_id]
-            total_cnt += 1
-    return total_price / total_cnt
+def get_avg_recs_price(joined, item_to_price, col='toppopular_recs'):
+    """
+    Вычисляет среднюю цену рекомендованных товаров.
+    """
+    total_price = 0
+    total_cnt = 0
+    
+    for recommendations in joined[col]:
+        if not recommendations or len(recommendations) == 0:
+            continue
+            
+        if isinstance(recommendations[0], tuple) and len(recommendations[0]) == 2:
+            for item_id, score in recommendations:
+                if item_id in item_to_price:
+                    total_price += item_to_price[item_id]
+                    total_cnt += 1
+        else:
+            for item_id in recommendations:
+                if item_id in item_to_price:
+                    total_price += item_to_price[item_id]
+                    total_cnt += 1
+    
+    return total_price / total_cnt if total_cnt > 0 else 0.0
 
 
 def get_item_to_price(dp, path='t_ecd_small_partial/dataset/small/retail/items.pq'):

@@ -41,7 +41,7 @@ class EASE:
         
         self.trained = True
         
-    def predict(self, df, topn=10):
+    def predict(self, df, topn=10, return_scores=False):
         assert self.trained, 'Model not fitted!'
         
         if issparse(self.user_item_matrix):
@@ -69,6 +69,12 @@ class EASE:
                 top_items = [self.idx_to_item[idx] for idx in top_indices[:topn]]
             else:
                 top_items = top_indices[:topn].tolist()
-            predictions.append(top_items)
+            
+            if return_scores:
+                top_scores = [float(user_scores[idx]) for idx in top_indices[:topn]]
+                items_with_scores = list(zip(top_items, top_scores))
+                predictions.append(items_with_scores)
+            else:
+                predictions.append(top_items)
         
         return predictions

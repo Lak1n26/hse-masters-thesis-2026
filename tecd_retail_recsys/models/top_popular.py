@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Tuple
 import numpy as np
 
 class TopPopular:
@@ -17,6 +17,13 @@ class TopPopular:
         self.recommendations = [x[0] for x in counts]
         self.trained = True
 
-    def predict(self, df, topn=10)  -> List[np.ndarray]:
+    def predict(self, df, topn=10, return_scores=False) -> List:
         assert self.trained, 'Model not fitted!'
-        return [self.recommendations[:topn]]*len(df)
+        
+        items = self.recommendations[:topn]
+        
+        if return_scores:
+            items_with_scores = [(item, 1.0 / (i + 1)) for i, item in enumerate(items)]
+            return [items_with_scores] * len(df)
+        else:
+            return [items] * len(df)

@@ -56,7 +56,7 @@ class iALS:
                 A = XtX + XtCX - (X_i.T @ X_i) + lambda_eye
                 self.item_factors[i] = np.linalg.solve(A, XtCp)
 
-    def predict(self, df, topn: int = 100):
+    def predict(self, df, topn: int = 100, return_scores=False):
         # возвращает top-k айтемов для каждого юзера (айтемы с которыми юзер взаимодействовал не должны попасть в рекомендации)
         scores = self.user_factors @ self.item_factors.T
         predictions = []
@@ -79,6 +79,11 @@ class iALS:
             else:
                 top_items = top_indices[:topn].tolist()
             
-            predictions.append(top_items)
+            if return_scores:
+                top_scores = [float(scores[row_idx][idx]) for idx in top_indices[:topn]]
+                items_with_scores = list(zip(top_items, top_scores))
+                predictions.append(items_with_scores)
+            else:
+                predictions.append(top_items)
         
         return predictions

@@ -168,21 +168,7 @@ class TIFUKNN:
         self.trained = True
         print("TIFU-KNN training completed!")
         
-    def predict(self, df, topn: int = 100) -> List[List[int]]:
-        """
-        Generate top-N recommendations for users.
-        
-        Parameters:
-        -----------
-        df : pd.DataFrame
-            DataFrame with users (same as used in fit)
-        topn : int
-            Number of recommendations per user
-            
-        Returns:
-        --------
-        List of lists with item IDs for each user
-        """
+    def predict(self, df, topn: int = 100, return_scores=False) -> List:
         assert self.trained, 'Model not fitted!'
         
         n_users = len(df)
@@ -226,6 +212,11 @@ class TIFUKNN:
                 # Use local mapping
                 top_items = [self.idx_to_item_local[idx] for idx in top_indices[:topn]]
             
-            predictions.append(top_items)
+            if return_scores:
+                top_scores = [float(user_scores[idx]) for idx in top_indices[:topn]]
+                items_with_scores = list(zip(top_items, top_scores))
+                predictions.append(items_with_scores)
+            else:
+                predictions.append(top_items)
         
         return predictions

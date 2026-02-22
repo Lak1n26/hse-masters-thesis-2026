@@ -14,8 +14,69 @@ from recommenders.evaluation.python_evaluation import (
 )
 
 
+def _safe_nonempty(x) -> bool:
+    """Check if value is non-empty without using truth value (works for list, np.array)."""
+    if x is None:
+        return False
+    try:
+        return len(x) > 0
+    except (TypeError, AttributeError):
+        return False
+
+
+def _get_el_at(x, index: int) -> Optional[int]:
+    """Get element at index from interaction (tuple/list/dict/array); cast to int."""
+    if x is None:
+        return None
+    try:
+        if isinstance(x, (list, tuple)) and len(x) > index:
+            v = x[index]
+            return int(v) if v is not None else None
+        if hasattr(x, "get") and callable(x.get):
+            v = x.get("item_id") if index == 0 else (x.get(index) or x.get("f%d" % index))
+            if v is not None:
+                return int(v)
+        if hasattr(x, "shape") and getattr(x, "size", 0) > index:
+            v = x[index]
+            return int(v) if v is not None else None
+        return None
+    except (TypeError, ValueError, KeyError, IndexError):
+        return None
+
+
+def _first_el(x) -> Optional[int]:
+    """Get item_id from interaction: tuple/list (item_id, ts, ...), dict-like, or numpy row."""
+    return _get_el_at(x, 0)
+
+
+def _detect_item_id_index(df: pd.DataFrame, gt_col: str, model_preds: str, user_col: str = "user_id") -> int:
+    """Detect which index in interaction tuple is item_id (0 or 1) by checking overlap with predictions."""
+    for _, row in df.head(20).iterrows():
+        raw_gt = row.get(gt_col)
+        if not _safe_nonempty(raw_gt):
+            continue
+        pred_list = _extract_items(row.get(model_preds) or [])
+        pred_set = set()
+        for x in pred_list:
+            try:
+                pred_set.add(int(x))
+            except (TypeError, ValueError):
+                pass
+        if not pred_set:
+            continue
+        for idx in (0, 1):
+            gt_set = set()
+            for x in raw_gt:
+                v = _get_el_at(x, idx)
+                if v is not None:
+                    gt_set.add(v)
+            if gt_set and len(gt_set & pred_set) > 0:
+                return idx
+    return 0
+
+
 def _extract_items(predicted: Union[List, List[Tuple]]) -> List:
-    if not predicted or len(predicted) == 0:
+    if not _safe_nonempty(predicted):
         return []
 
     if isinstance(predicted[0], tuple) and len(predicted[0]) == 2:
@@ -25,7 +86,7 @@ def _extract_items(predicted: Union[List, List[Tuple]]) -> List:
 
 
 def _extract_scores(predicted: Union[List, List[Tuple]]) -> List[float]:
-    if not predicted or len(predicted) == 0:
+    if not _safe_nonempty(predicted):
         return []
 
     if isinstance(predicted[0], tuple) and len(predicted[0]) == 2:
@@ -46,7 +107,7 @@ def calculate_inter_user_diversity(df: pd.DataFrame, model_preds: str) -> float:
     total_users = len(df)
     
     for idx, row in df.iterrows():
-        predictions = row[model_preds] if row[model_preds] else []
+        predictions = row.get(model_preds) if _safe_nonempty(row.get(model_preds)) else []
         items = _extract_items(predictions)
         
         for item in items:
@@ -63,65 +124,121 @@ def calculate_inter_user_diversity(df: pd.DataFrame, model_preds: str) -> float:
     return diversity
 
 
+def _resolve_gt_col(df: pd.DataFrame, gt_col: str) -> str:
+    """Use gt_col if it exists and has data; else try val_interactions_y, val_interactions_x (pandas merge suffixes)."""
+    if gt_col in df.columns:
+        for _, row in df.head(5).iterrows():
+            if _safe_nonempty(row.get(gt_col)):
+                return gt_col
+    for candidate in [gt_col + "_y", gt_col + "_x", "val_interactions_y", "val_interactions_x"]:
+        if candidate in df.columns:
+            for _, row in df.head(5).iterrows():
+                if _safe_nonempty(row.get(candidate)):
+                    return candidate
+    return gt_col
+
+
 def prepare_for_evaluation(df: pd.DataFrame, 
                            model_preds: str, 
                            gt_col: str,
-                           user_col: str = 'user_id') -> Tuple[pd.DataFrame, pd.DataFrame]:
+                           user_col: str = 'user_id',
+                           item_id_index: Optional[int] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    if item_id_index is None:
+        item_id_index = _detect_item_id_index(df, gt_col, model_preds, user_col)
     true_rows = []
     for idx, row in df.iterrows():
         user_id = row.get(user_col, idx)
-        gt_items = [item[0] for item in row[gt_col]] if row[gt_col] else []
-        
+        try:
+            uid = int(user_id) if user_id is not None and not (isinstance(user_id, float) and np.isnan(user_id)) else idx
+        except (TypeError, ValueError):
+            uid = idx
+        raw_gt = row.get(gt_col)
+        gt_items = [_get_el_at(item, item_id_index) for item in (raw_gt if _safe_nonempty(raw_gt) else [])]
+        gt_items = [i for i in gt_items if i is not None]
         for item_id in gt_items:
+            try:
+                iid = int(item_id)
+            except (TypeError, ValueError):
+                continue
             true_rows.append({
-                'user_id': user_id, 
-                'item_id': item_id, 
+                'user_id': uid,
+                'item_id': iid,
                 'rating': 1.0
             })
-    
+
     ratings_true = pd.DataFrame(true_rows)
 
     pred_rows = []
     for idx, row in df.iterrows():
         user_id = row.get(user_col, idx)
-        predictions = row[model_preds] if row[model_preds] else []
-        
-        if not predictions:
+        try:
+            uid = int(user_id) if user_id is not None and not (isinstance(user_id, float) and np.isnan(user_id)) else idx
+        except (TypeError, ValueError):
+            uid = idx
+        predictions = row.get(model_preds) if _safe_nonempty(row.get(model_preds)) else []
+        if not _safe_nonempty(predictions):
             continue
         items = _extract_items(predictions)
         scores = _extract_scores(predictions)
-        
-        for item_id, score in zip(items, scores):
+        for it, score in zip(items, scores):
+            try:
+                iid = int(it)
+            except (TypeError, ValueError):
+                continue
             pred_rows.append({
-                'user_id': user_id,
-                'item_id': item_id,
+                'user_id': uid,
+                'item_id': iid,
                 'prediction': score
             })
     
     ratings_pred = pd.DataFrame(pred_rows)
-    
+
+    # Приводим user_id и item_id к одному типу (recommenders требует одинаковый base dtype)
+    for col in ("user_id", "item_id"):
+        if col in ratings_true.columns and not ratings_true.empty:
+            ratings_true[col] = ratings_true[col].astype(np.int64)
+        if col in ratings_pred.columns and not ratings_pred.empty:
+            ratings_pred[col] = ratings_pred[col].astype(np.int64)
+
     return ratings_true, ratings_pred
 
 
 def calculate_mrr(df: pd.DataFrame, 
                   model_preds: str, 
-                  gt_col: str) -> float:
+                  gt_col: str,
+                  item_id_index: int = 0) -> float:
     """
     Calculate Mean Reciprocal Rank (MRR).
     """
     reciprocal_ranks = []
     
     for idx, row in df.iterrows():
-        gt_items = set([item[0] for item in row[gt_col]]) if row[gt_col] else set()
-        predictions = row[model_preds] if row[model_preds] else []
-        
+        raw_gt = row.get(gt_col)
+        raw_gt = raw_gt if _safe_nonempty(raw_gt) else []
+        gt_items = set()
+        for x in raw_gt:
+            iid = _get_el_at(x, item_id_index) if not isinstance(x, (int, float)) else (int(x) if x is not None else None)
+            if iid is not None:
+                gt_items.add(iid)
+            else:
+                try:
+                    gt_items.add(int(x))
+                except (TypeError, ValueError):
+                    pass
+        predictions = row.get(model_preds) if _safe_nonempty(row.get(model_preds)) else []
         if not predictions or not gt_items:
             reciprocal_ranks.append(0.0)
             continue
 
         pred_items = _extract_items(predictions)
+        pred_items_int = []
+        for x in pred_items:
+            try:
+                pred_items_int.append(int(x))
+            except (TypeError, ValueError):
+                pass
 
-        for rank, item in enumerate(pred_items, start=1):
+        for rank, item in enumerate(pred_items_int, start=1):
             if item in gt_items:
                 reciprocal_ranks.append(1.0 / rank)
                 break
@@ -137,8 +254,63 @@ def _calculate_metrics_at_k(df: pd.DataFrame,
                           train_col: Optional[str] = None,
                           k_values: List[int] = [10, 100],
                           verbose: bool = False) -> Dict[str, float]:
+    gt_col = _resolve_gt_col(df, gt_col)
+    item_id_index = _detect_item_id_index(df, gt_col, model_preds)
+    if verbose:
+        print("[Metrics debug] resolved gt_col=%r item_id_index=%s" % (gt_col, item_id_index))
     metrics = {}
-    ratings_true, ratings_pred = prepare_for_evaluation(df, model_preds, gt_col)
+    ratings_true, ratings_pred = prepare_for_evaluation(df, model_preds, gt_col, item_id_index=item_id_index)
+
+    if verbose:
+        print("[Metrics debug] ratings_true shape:", ratings_true.shape, "ratings_pred shape:", ratings_pred.shape)
+        if not ratings_true.empty:
+            print("  ratings_true dtypes:", ratings_true[['user_id', 'item_id']].dtypes.to_dict())
+        if not ratings_pred.empty:
+            print("  ratings_pred dtypes:", ratings_pred[['user_id', 'item_id']].dtypes.to_dict())
+        # First user overlap
+        for idx, row in df.head(3).iterrows():
+            uid = row.get('user_id', idx)
+            try:
+                uid = int(uid)
+            except (TypeError, ValueError):
+                uid = idx
+            gt_raw = row.get(gt_col)
+            gt_set = set()
+            for x in (gt_raw if _safe_nonempty(gt_raw) else []):
+                iid = _get_el_at(x, item_id_index) if not isinstance(x, (int, float)) else (int(x) if x is not None else None)
+                if iid is not None:
+                    gt_set.add(iid)
+            pred_list = _extract_items(row.get(model_preds) or [])
+            pred_set = set()
+            for x in pred_list:
+                try:
+                    pred_set.add(int(x))
+                except (TypeError, ValueError):
+                    pass
+            overlap = len(gt_set & pred_set)
+            print(f"  user_id={uid} gt_count={len(gt_set)} pred_count={len(pred_set)} overlap={overlap}")
+            if overlap == 0 and gt_set and pred_set:
+                gt_sample = sorted(gt_set)[:5]
+                rec_sample = sorted(pred_set)[:5]
+                print(f"    [ID spaces] gt sample={gt_sample} range=[{min(gt_set)}, {max(gt_set)}] | rec sample={rec_sample} range=[{min(pred_set)}, {max(pred_set)}]")
+        if ratings_true.empty and not df.empty:
+            cols = [c for c in df.columns if "val" in c.lower() or "interaction" in c.lower() or c == gt_col]
+            print("  [GT column inspect] columns related to val/gt:", cols)
+            row0 = df.iloc[0]
+            raw = row0.get(gt_col)
+            print("  gt_col=%r type(raw)=%s len=%s" % (
+                gt_col, type(raw).__name__, len(raw) if _safe_nonempty(raw) else 0
+            ))
+            if _safe_nonempty(raw):
+                first = raw[0]
+                print("    first element: type=%s repr=%r _first_el(first)=%s" % (
+                    type(first).__name__, first, _first_el(first)
+                ))
+            else:
+                for c in cols:
+                    val = row0.get(c)
+                    if _safe_nonempty(val):
+                        print("    %r has len=%s first=%r" % (c, len(val), val[0] if len(val) else None))
     
     if ratings_true.empty or ratings_pred.empty:
         print("Warning: Empty ratings data, returning zero metrics")
@@ -181,7 +353,7 @@ def _calculate_metrics_at_k(df: pd.DataFrame,
     
     # MRR (Mean Reciprocal Rank)
     try:
-        metrics['MRR'] = calculate_mrr(df, model_preds, gt_col)
+        metrics['MRR'] = calculate_mrr(df, model_preds, gt_col, item_id_index=item_id_index)
     except Exception as e:
         print(f"Warning: Could not calculate MRR: {e}")
         metrics['MRR'] = 0.0
@@ -193,17 +365,29 @@ def _calculate_metrics_at_k(df: pd.DataFrame,
             train_rows = []
             for idx, row in df.iterrows():
                 user_id = row.get('user_id', idx)
-                train_items = [item[0] for item in row[train_col]] if row[train_col] else []
-                
-                for item_id in train_items:
-                    train_rows.append({
-                        'user_id': user_id, 
-                        'item_id': item_id, 
-                        'rating': 1.0
-                    })
+                raw_train_raw = row.get(train_col)
+                raw_train = [_get_el_at(item, item_id_index) for item in (raw_train_raw if _safe_nonempty(raw_train_raw) else [])]
+                raw_train = [i for i in raw_train if i is not None]
+                try:
+                    uid = int(user_id) if user_id is not None else int(idx)
+                except (TypeError, ValueError):
+                    uid = int(idx)
+                for item_id in raw_train:
+                    try:
+                        train_rows.append({
+                            'user_id': uid,
+                            'item_id': int(item_id),
+                            'rating': 1.0
+                        })
+                    except (TypeError, ValueError):
+                        pass
             
             train_true = pd.DataFrame(train_rows)
-            
+            if not train_true.empty:
+                for col in ("user_id", "item_id"):
+                    if col in train_true.columns:
+                        train_true[col] = train_true[col].astype(np.int64)
+
             # Filter out train items from recommendations for novelty/serendipity
             if not train_true.empty:
                 train_pairs = set(zip(train_true['user_id'], train_true['item_id']))
@@ -282,7 +466,7 @@ def calculate_metrics(df: pd.DataFrame,
         df, model_preds, gt_col, 
         train_col=train_col,
         k_values=[10, 100], 
-        verbose=False
+        verbose=verbose
     )
     
     if verbose:

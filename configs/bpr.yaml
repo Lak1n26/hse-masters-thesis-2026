@@ -1,0 +1,19 @@
+#model
+model:
+    model_type : "bpr"
+    k : 4096 # dimension of latent factors
+    max_iter : 3000 # maximum number of iterations
+    learning_rate : 0.001
+    lambda_reg : 0.001 # regularization parameter
+    
+#train
+train:
+    batch_size : 1000
+    top_k : 100 # number of items to recommend when calculating evaluation metrics
+
+#show info
+#metric : "recall", "ndcg", "precision", "map"
+info:
+    save_model : True # whether to save model
+    metrics : ["recall", "ndcg", "precision", "map"] # metrics for evaluation
+    MODEL_DIR : ./models/bpr/ # directory of saved models

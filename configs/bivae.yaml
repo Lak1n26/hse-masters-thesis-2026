@@ -1,0 +1,24 @@
+#model
+model:
+    model_type : "bivae"
+    k : 100 # dimension of latent factors
+    encoder_structure : [200, 100] # structure of encoder network
+        act_fn : "relu" # activation function: [tanh, sigmoid, relu, relu6, elu, identity]
+    likelihood : "pois" # likelihood: [pois (Poisson), norm (Normal), bern (Bernoulli)]
+    
+#train
+train:
+    batch_size : 256
+    epochs : 200 # number of epochs for training
+    learning_rate : 0.001
+    beta_kl : 0.05 # beta for KL divergence
+    eval_epoch : 10 # evaluate the model every eval_epoch
+    top_k : 100 # number of items to recommend when calculating evaluation metrics
+
+#show info
+#metric : "recall", "ndcg", "precision", "map"
+info:
+    save_model : True # whether to save model
+    save_epoch : 1 # if save_model is set to True, save the model every save_epoch
+    metrics : ["recall", "ndcg", "precision", "map"] # metrics for evaluation
+    MODEL_DIR : ./models/bivae/ # directory of saved models

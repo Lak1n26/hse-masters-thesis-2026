@@ -1,0 +1,32 @@
+#model
+model:
+    model_type : "bert4rec"
+    n_blocks : 2 # number of transformer blocks
+    n_heads : 4 # number of attention heads
+    n_factors : 256 # latent embeddings size
+    dropout_rate : 0.2 # dropout rate
+    mask_prob : 0.15 # probability of masking an item in sequence
+    session_max_len : 130 # maximum sequence length
+    train_min_user_interactions : 2 # minimum interactions for training
+    use_pos_emb : True # use positional embeddings
+    use_key_padding_mask : True # use key padding mask in attention
+    
+#train
+train:
+    batch_size : 256
+    epochs : 100 # number of epochs for training
+    learning_rate : 0.001
+    loss : "softmax" # loss function: [softmax, BCE, gBCE, sampled_softmax]
+    n_negatives : 1 # number of negatives for BCE, gBCE, sampled_softmax
+    gbce_t : 0.2 # calibration parameter for gBCE loss
+    deterministic : True # deterministic training
+    verbose : 1 # verbosity level
+    dataloader_num_workers : 0
+    top_k : 100 # number of items to recommend when calculating evaluation metrics
+
+#show info
+#metric : "recall", "ndcg", "precision", "map"
+info:
+    save_model : True # whether to save model
+    metrics : ["recall", "ndcg", "precision", "map"] # metrics for evaluation
+    MODEL_DIR : ./models/bert4rec/ # directory of saved models

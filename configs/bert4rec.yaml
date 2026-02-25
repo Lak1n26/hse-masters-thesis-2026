@@ -6,7 +6,7 @@ model:
     n_factors : 256 # latent embeddings size
     dropout_rate : 0.2 # dropout rate
     mask_prob : 0.15 # probability of masking an item in sequence
-    session_max_len : 130 # maximum sequence length
+    session_max_len : 100 # maximum sequence length
     train_min_user_interactions : 2 # minimum interactions for training
     use_pos_emb : True # use positional embeddings
     use_key_padding_mask : True # use key padding mask in attention

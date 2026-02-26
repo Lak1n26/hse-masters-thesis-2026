@@ -1,0 +1,32 @@
+#model
+model:
+    model_type : "lightfm"
+    no_components : 512 # dimensionality of feature latent embeddings
+    k : 10 # for warp loss, number of negative item samples to use in training
+    n : 20 # for warp loss, number of incorrect samples to draw before any optimizations
+    learning_schedule : "adadelta" # learning schedule: [adagrad, adadelta]
+    loss : "warp-kos" # loss function: [logistic, bpr, warp, warp-kos]
+    learning_rate : 0.03 # learning rate
+    rho : 0.95 # adadelta learning schedule, moving average decay
+    epsilon : 1e-6 # adadelta learning schedule, regularization parameter
+    item_alpha : 0.0001 # L2 penalty on item features
+    user_alpha : 0.0001 # L2 penalty on user features
+    max_sampled : 10 # maximum number of negative samples used during training
+    random_state : 42 # random state for reproducibility
+    
+#train
+train:
+    epochs : 200 # number of epochs for training
+    num_threads : 8 # number of threads for training
+    verbose : 1 # verbosity level
+    top_k : 100 # number of items to recommend when calculating evaluation metrics
+    recommend_n_threads : 4 # number of threads for recommendation ranking on CPU
+    recommend_use_gpu_ranking : True # whether to use GPU for recommendation ranking
+
+#show info
+#metric : "recall", "ndcg", "precision", "map"
+info:
+    save_model : True # whether to save model
+    metrics : ["recall", "ndcg", "precision", "map"] # metrics for evaluation
+    MODEL_DIR : ./models/lightfm/ # directory of saved models
+

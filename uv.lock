@@ -1355,7 +1355,7 @@ dependencies = [
     { name = "polars" },
     { name = "recbole" },
     { name = "recommenders" },
-    { name = "rectools" },
+    { name = "rectools", extra = ["lightfm"] },
     { name = "tensorflow" },
     { name = "torch" },
 ]
@@ -1367,7 +1367,7 @@ requires-dist = [
     { name = "polars", specifier = ">=1.38.1" },
     { name = "recbole", specifier = ">=1.2.1" },
     { name = "recommenders", specifier = ">=1.2.1" },
-    { name = "rectools", specifier = ">=0.18.0" },
+    { name = "rectools", extras = ["lightfm"], specifier = ">=0.18.0" },
     { name = "tensorflow", specifier = ">=2.20.0" },
     { name = "torch", specifier = ">=2.10.0" },
 ]
@@ -3751,6 +3751,24 @@ sdist = { url = "https://files.pythonhosted.org/packages/1f/7a/2c2f1148790a9260d
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9c/dc/efd04c7896390a4518fe65ebb11ad722a151aed3a5463c412edc129e2d9e/rectools-0.18.0-py3-none-any.whl", hash = "sha256:4c5f1f4c2213bb7ff65760a4a6232bf925ab46ba98a1fd51824600be6bfc3175", size = 233078, upload-time = "2026-02-21T05:58:43.596Z" },
 ]
+
+[package.optional-dependencies]
+lightfm = [
+    { name = "rectools-lightfm" },
+]
+
+[[package]]
+name = "rectools-lightfm"
+version = "1.17.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "requests" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a4/da/3867c5de0f51b4fb632bb5fdcb303dd3d903b5eb17cf7cccdfc6836cc76c/rectools-lightfm-1.17.3.tar.gz", hash = "sha256:81625340e6cfc5854c0c69269d924d1ae34bedcbf3562680ee4aa2e093d824a9", size = 411720, upload-time = "2024-12-08T19:57:12.048Z" }
 
 [[package]]
 name = "referencing"

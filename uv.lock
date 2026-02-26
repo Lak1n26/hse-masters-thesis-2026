@@ -1356,6 +1356,7 @@ dependencies = [
     { name = "recbole" },
     { name = "recommenders" },
     { name = "rectools", extra = ["lightfm"] },
+    { name = "setuptools" },
     { name = "tensorflow" },
     { name = "torch" },
 ]
@@ -1368,6 +1369,7 @@ requires-dist = [
     { name = "recbole", specifier = ">=1.2.1" },
     { name = "recommenders", specifier = ">=1.2.1" },
     { name = "rectools", extras = ["lightfm"], specifier = ">=0.18.0" },
+    { name = "setuptools", specifier = ">=82.0.0" },
     { name = "tensorflow", specifier = ">=2.20.0" },
     { name = "torch", specifier = ">=2.10.0" },
 ]

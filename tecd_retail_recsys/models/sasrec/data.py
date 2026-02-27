@@ -17,6 +17,7 @@ class Data:
     validation: pd.DataFrame | None
     test: pd.DataFrame
     num_items: int
+    trainval: pd.DataFrame | None = None
 
     def __post_init__(self):
         # Extract unique item IDs from train set
@@ -58,19 +59,26 @@ def preprocess_for_sasrec(train_df: pd.DataFrame, val_df: pd.DataFrame,
         lambda x: truncate_interactions(x, max_seq_len)
     )
     
+    # Concatenate train and val interactions for training on test
+    merged['train_val_interactions'] = merged.apply(
+        lambda row: list(row['train_interactions']) + list(row['val_interactions']), axis=1
+    )
+
     return Data(
         train=merged[['user_id', 'train_interactions']],
         validation=merged[['user_id', 'val_interactions']],
         test=merged[['user_id', 'test_interactions']],
+        trainval=merged[['user_id', 'train_val_interactions']],
         num_items=num_items
     )
 
 
 class TrainDataset:
-    def __init__(self, dataset: pd.DataFrame, num_items: int, max_seq_len: int):
+    def __init__(self, dataset: pd.DataFrame, num_items: int, max_seq_len: int, interactions_col: str = 'train_interactions'):
         self._dataset = dataset
         self._num_items = num_items
         self._max_seq_len = max_seq_len
+        self._interactions_col = interactions_col
 
     @property
     def dataset(self) -> pd.DataFrame:
@@ -82,8 +90,8 @@ class TrainDataset:
     def __getitem__(self, index: int) -> Dict[str, List[int] | int]:
         row = self._dataset.iloc[index]
         
-        # Extract item IDs from train_interactions (item_id, timestamp, price)
-        interactions = row['train_interactions']
+        # Extract item IDs from interactions column (item_id, timestamp, price)
+        interactions = row[self._interactions_col]
         # Handle both tuple and array formats
         if isinstance(interactions[0], (list, np.ndarray)):
             item_ids = [int(item[0]) for item in interactions]

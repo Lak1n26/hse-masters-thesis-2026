@@ -3,7 +3,7 @@ model:
     model_type : "bivae"
     k : 100 # dimension of latent factors
     encoder_structure : [200, 100] # structure of encoder network
-        act_fn : "relu" # activation function: [tanh, sigmoid, relu, relu6, elu, identity]
+    act_fn : "relu" # activation function: [tanh, sigmoid, relu, relu6, elu, identity]
     likelihood : "pois" # likelihood: [pois (Poisson), norm (Normal), bern (Bernoulli)]
     
 #train

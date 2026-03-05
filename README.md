@@ -20,9 +20,14 @@
 
 Промежуточная презентация - [presentation.pdf](presentation.pdf)
 
+---
 
-TODO:
+В работе:
+1. Реализация собственной архитектуры, ее бенчмаркинг, две ключевые идеи:
+- Embedding-based Retrieval (первая попытка в [embedding_retrieval.ipynb](notebooks/embedding_retrieval.ipynb))
+- Generative Retrieval (реализую идею из https://arxiv.org/abs/2305.05065, первая попытка в [rqvae.ipynb](notebooks/rqvae.ipynb))
+
+---
+
+В планах:
 1. Бенчмаркинг Basket-специфичных моделей (NPA, Beacon, etc)
-2. Реализция собственной архитектуры, ее бенчмаркинг, две ключевые идеи:
-- Embedding-based Retrieval
-- Generative Retrieval

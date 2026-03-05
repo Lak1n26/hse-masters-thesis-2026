@@ -1,0 +1,189 @@
+# RQ-VAE Recommender Configuration
+# Based on "Recommender Systems with Generative Retrieval" (Rajput et al., 2023)
+
+
+# Config A — FAST BASELINE (start here, ~30 min on MPS)
+#   Small model, low codebook, 3 quantizers.
+#   Goal: verify pipeline works and get first non-zero metrics.
+#
+# Config B — BALANCED (recommended, ~2h on MPS)
+#   Medium model, codebook=256, 4 quantizers.
+#   Matches capacity of the data (~30k items).
+#
+# Config C — LARGE (quality ceiling, ~5h on MPS)
+#   Deeper transformer, more epochs.
+
+
+active_config: "C"
+
+# ---- Config A: Fast Baseline ----
+config_A:
+  model:
+    item_embedding_dim: 300
+    rqvae:
+      hidden_dims: [256, 128]
+      num_quantizers: 3
+      codebook_size: 128
+      commitment_cost: 0.25
+      ema_decay: 0.99
+    decoder:
+      d_model: 64
+      nhead: 4
+      num_layers: 2
+      dim_feedforward: 256
+      dropout: 0.1
+      max_seq_length: 50
+  train:
+    rqvae:
+      epochs: 30
+      batch_size: 512
+      learning_rate: 0.001
+    decoder:
+      epochs: 15
+      batch_size: 256
+      learning_rate: 0.0003
+      warmup_epochs: 3
+    top_k: 100
+    temperature: 1.0
+
+# ---- Config B: Balanced (Recommended) ----
+config_B:
+  model:
+    item_embedding_dim: 300
+    rqvae:
+      hidden_dims: [512, 256]
+      num_quantizers: 4
+      codebook_size: 256
+      commitment_cost: 0.25
+      ema_decay: 0.99
+    decoder:
+      d_model: 128
+      nhead: 4
+      num_layers: 3
+      dim_feedforward: 512
+      dropout: 0.1
+      max_seq_length: 100
+  train:
+    rqvae:
+      epochs: 60
+      batch_size: 256
+      learning_rate: 0.001
+    decoder:
+      epochs: 30
+      batch_size: 128
+      learning_rate: 0.0002
+      warmup_epochs: 5
+    top_k: 100
+    temperature: 1.0
+
+# ---- Config C: Large / Quality Ceiling ----
+config_C:
+  model:
+    item_embedding_dim: 300
+    rqvae:
+      hidden_dims: [512, 256]
+      num_quantizers: 4
+      codebook_size: 256
+      commitment_cost: 0.25
+      ema_decay: 0.995
+    decoder:
+      d_model: 256
+      nhead: 8
+      num_layers: 4
+      dim_feedforward: 1024
+      dropout: 0.1
+      max_seq_length: 150
+  train:
+    rqvae:
+      epochs: 60
+      batch_size: 256
+      learning_rate: 0.0003
+    decoder:
+      epochs: 10
+      batch_size: 128
+      learning_rate: 0.0002
+      warmup_epochs: 8
+    top_k: 100
+    temperature: 1.0
+
+
+data:
+  raw_data_path: 't_ecd_small_partial/dataset/small'
+  processed_data_dir: 'processed_data'
+  day_begin: 1082
+  day_end: 1308
+  min_user_interactions: 5
+  min_item_interactions: 20
+  val_days: 20
+  test_days: 20
+  users_limit: null
+
+evaluation:
+  metrics: ["recall", "ndcg", "precision", "map", "mrr"]
+  k_values: [10, 100]
+
+info:
+  save_model: true
+  model_dir: './models/rqvae/'
+  checkpoint_name: 'rqvae_model.pt'
+
+model:
+  model_type: "rqvae"
+  item_embedding_dim: 300
+  rqvae:
+    hidden_dims: [512, 256]
+    num_quantizers: 4
+    codebook_size: 256
+    commitment_cost: 0.25
+    ema_decay: 0.99
+  decoder:
+    d_model: 128
+    nhead: 4
+    num_layers: 3
+    dim_feedforward: 512
+    dropout: 0.1
+    max_seq_length: 100
+
+train:
+  rqvae:
+    epochs: 60
+    batch_size: 256
+    learning_rate: 0.001
+  decoder:
+    epochs: 30
+    batch_size: 128
+    learning_rate: 0.0002
+    warmup_epochs: 5
+  top_k: 100
+  temperature: 1.0
+
+config_BEST:
+  model:
+    item_embedding_dim: 300
+    rqvae:
+      hidden_dims: [1024, 512, 256]
+      num_quantizers: 8
+      codebook_size: 512
+      commitment_cost: 0.25
+      ema_decay: 0.995
+    decoder:
+      d_model: 512
+      nhead: 16
+      num_encoder_layers: 6
+      num_decoder_layers: 6
+      dim_feedforward: 2048
+      dropout: 0.2
+      max_seq_length: 200
+  train:
+    rqvae:
+      epochs: 200
+      batch_size: 256
+      learning_rate: 0.0003
+    decoder:
+      epochs: 100
+      batch_size: 64
+      learning_rate: 0.0001
+      warmup_epochs: 10
+    top_k: 100
+    temperature: 0.7
+

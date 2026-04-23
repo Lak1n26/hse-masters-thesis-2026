@@ -29,7 +29,8 @@ Basket-специфичные модели:
 - Beacon ([статья](https://www.ijcai.org/proceedings/2019/0389.pdf)) - [beacon.ipynb](notebooks/beacon.ipynb) - модель рекомендаций следующей корзины
 - SAFEREc (by T-Bank) ([статья](https://arxiv.org/pdf/2412.14302)) - [saferec.ipynb](notebooks/saferec.ipynb) - модель рекомендаций следующей корзины
 
-В работе:
-1. Реализация собственной архитектуры, ее бенчмаркинг, две ключевые идеи:
-- Embedding-based Retrieval (первая попытка в [embedding_retrieval.ipynb](notebooks/embedding_retrieval.ipynb))
-- Generative Retrieval (реализую идею из https://arxiv.org/abs/2305.05065, первая попытка в [rqvae.ipynb](notebooks/rqvae.ipynb))
+---
+
+Собственные архитектуры:
+- CRUSH (CatBoost Recommender for User-Specific History) - [crush.ipynb](notebooks/crush.ipynb)
+- KATUSHA (Knowledge-based Architecture to Transactional User Sequence and Historical Affinity) - [katusha.ipynb](notebooks/katusha.ipynb)

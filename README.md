@@ -32,5 +32,6 @@ Basket-специфичные модели:
 ---
 
 Собственные архитектуры:
-- CRUSH (CatBoost Recommender for User-Specific History) - [crush.ipynb](notebooks/crush.ipynb)
-- KATUSHA (Knowledge-based Architecture to Transactional User Sequence and Historical Affinity) - [katusha.ipynb](notebooks/katusha.ipynb)
+- CatBoost Recommender for User-Specific History (CRUSH) - [crush.ipynb](notebooks/crush.ipynb)
+- Knowledge-based Architecture to Transactional User Sequence and Historical Affinity (KATUSHA) - [katusha.ipynb](notebooks/katusha.ipynb)
+- KATUSHA with price-targeting - [katusha_business_target.ipynb](notebooks/katusha_business_target.ipynb)

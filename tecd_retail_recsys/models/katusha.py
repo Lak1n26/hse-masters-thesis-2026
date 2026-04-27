@@ -1,10 +1,9 @@
-
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import numpy as np
-
 from sklearn.metrics import roc_auc_score
+
 
 def transform_frame(df, categorical_features, numeric_features, cat_maps, scaler, target_col="target"):
     df = df.copy()
@@ -33,28 +32,88 @@ class RecDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X_cat[idx], self.X_num[idx], self.y[idx]
-    
+
 
 def get_embedding_dim(cardinality: int) -> int:
     return min(64, max(8, int(np.sqrt(cardinality)) + 1))
 
 
-class TwoLayerRecMLP(nn.Module):
-    def __init__(self, cat_cardinalities, num_numeric_features, hidden1=256, hidden2=128, dropout=0.15):
+class KATUSHA(nn.Module):
+    """
+    Hybrid model:
+    - categorical embeddings -> self-attention
+    - numeric features -> separate MLP branch
+    - concat -> prediction MLP head
+    """
+
+    def __init__(
+        self,
+        cat_cardinalities,
+        num_numeric_features,
+        hidden1=256,
+        hidden2=128,
+        dropout=0.15,
+        attn_dim=64,
+        num_heads=4,
+        attn_dropout=None,
+        numeric_hidden=64,
+    ):
         super().__init__()
 
+        if attn_dim % num_heads != 0:
+            raise ValueError("attn_dim must be divisible by num_heads")
+
+        if attn_dropout is None:
+            attn_dropout = dropout
+
         self.cat_cols = list(cat_cardinalities.keys())
+        self.attn_dim = attn_dim
 
         self.embeddings = nn.ModuleDict({
             col: nn.Embedding(
                 num_embeddings=cardinality,
-                embedding_dim=get_embedding_dim(cardinality)
+                embedding_dim=get_embedding_dim(cardinality),
             )
             for col, cardinality in cat_cardinalities.items()
         })
 
-        emb_dim_total = sum(get_embedding_dim(card) for card in cat_cardinalities.values())
-        input_dim = emb_dim_total + num_numeric_features
+        self.embedding_projections = nn.ModuleDict({
+            col: nn.Linear(get_embedding_dim(cardinality), attn_dim)
+            for col, cardinality in cat_cardinalities.items()
+        })
+
+        self.attn_norm = nn.LayerNorm(attn_dim)
+
+        self.self_attention = nn.MultiheadAttention(
+            embed_dim=attn_dim,
+            num_heads=num_heads,
+            dropout=attn_dropout,
+            batch_first=True,
+        )
+
+        self.attn_dropout = nn.Dropout(dropout)
+
+        self.ffn_norm = nn.LayerNorm(attn_dim)
+
+        self.attn_ffn = nn.Sequential(
+            nn.Linear(attn_dim, attn_dim * 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(attn_dim * 2, attn_dim),
+        )
+
+        self.ffn_dropout = nn.Dropout(dropout)
+
+        self.numeric_branch = nn.Sequential(
+            nn.Linear(num_numeric_features, numeric_hidden),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(numeric_hidden, numeric_hidden),
+            nn.ReLU(),
+        )
+
+        categorical_repr_dim = len(self.cat_cols) * attn_dim
+        input_dim = categorical_repr_dim + numeric_hidden
 
         self.mlp = nn.Sequential(
             nn.Linear(input_dim, hidden1),
@@ -65,18 +124,41 @@ class TwoLayerRecMLP(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout),
 
-            nn.Linear(hidden2, 1)
+            nn.Linear(hidden2, 1),
         )
 
     def forward(self, x_cat, x_num):
-        embs = []
-        for i, col in enumerate(self.cat_cols):
-            embs.append(self.embeddings[col](x_cat[:, i]))
+        cat_tokens = []
 
-        x = torch.cat(embs + [x_num], dim=1)
+        for i, col in enumerate(self.cat_cols):
+            emb = self.embeddings[col](x_cat[:, i])
+            token = self.embedding_projections[col](emb)
+            cat_tokens.append(token)
+
+        cat_tokens = torch.stack(cat_tokens, dim=1)
+
+        attn_input = self.attn_norm(cat_tokens)
+
+        attn_output, _ = self.self_attention(
+            query=attn_input,
+            key=attn_input,
+            value=attn_input,
+            need_weights=False,
+        )
+
+        cat_tokens = cat_tokens + self.attn_dropout(attn_output)
+
+        ffn_input = self.ffn_norm(cat_tokens)
+        cat_tokens = cat_tokens + self.ffn_dropout(self.attn_ffn(ffn_input))
+
+        categorical_repr = cat_tokens.flatten(start_dim=1)
+        numeric_repr = self.numeric_branch(x_num)
+
+        x = torch.cat([categorical_repr, numeric_repr], dim=1)
+
         logits = self.mlp(x).squeeze(1)
         return logits
-    
+
 
 @torch.no_grad()
 def evaluate(model, loader, criterion, device):
@@ -125,6 +207,7 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
 
     return total_loss / len(loader.dataset)
 
+
 @torch.no_grad()
 def predict_scores(model, df, categorical_features, numeric_features, cat_maps, scaler, device, batch_size=8192):
     model.eval()
@@ -143,6 +226,7 @@ def predict_scores(model, df, categorical_features, numeric_features, cat_maps, 
         preds.append(probs)
 
     return np.concatenate(preds)
+
 
 def transform_frame_inference(df, categorical_features, numeric_features, cat_maps, scaler):
     df = df.copy()
@@ -166,6 +250,7 @@ def transform_frame_inference(df, categorical_features, numeric_features, cat_ma
 
     return X_cat, X_num
 
+
 @torch.no_grad()
 def predict_scores_inference(
     model,
@@ -175,7 +260,7 @@ def predict_scores_inference(
     cat_maps,
     scaler,
     device,
-    batch_size=8192
+    batch_size=8192,
 ):
     model.eval()
 
@@ -184,7 +269,7 @@ def predict_scores_inference(
         categorical_features=categorical_features,
         numeric_features=numeric_features,
         cat_maps=cat_maps,
-        scaler=scaler
+        scaler=scaler,
     )
 
     preds = []
